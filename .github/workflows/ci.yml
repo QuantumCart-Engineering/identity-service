@@ -82,4 +82,5 @@ jobs:
           DB_PASSWORD: root
           DB_NAME: identity_test_db
           DB_CONNECTION_LIMIT: 10
+          JWT_SECRET: test-only-jwt-secret-for-ci
         run: npm run test:coverage
