@@ -73,6 +73,25 @@ jobs:
           DB_CONNECTION_LIMIT: 10
         run: npm run test:migrate
 
+      - name: Validate branch promotion
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ "${{ github.base_ref }}" = "uat" ] && [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "❌ Only dev can create PRs to uat."
+            echo "Source branch: ${{ github.head_ref }}"
+            echo "Target branch: ${{ github.base_ref }}"
+            exit 1
+          fi
+
+          if [ "${{ github.base_ref }}" = "master" ] && [ "${{ github.head_ref }}" != "uat" ]; then
+            echo "❌ Only uat can create PRs to master."
+            echo "Source branch: ${{ github.head_ref }}"
+            echo "Target branch: ${{ github.base_ref }}"
+            exit 1
+          fi
+
+          echo "✅ Branch promotion is valid."
+
       - name: Run tests with coverage
         env:
           NODE_ENV: test
