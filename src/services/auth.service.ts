@@ -17,25 +17,37 @@ import {
     findUserByPhone,
     createUser,
     findUserForLogin,
-    findUserById,
+    findUserById
 } from "../repositories/user.repository";
 
 import { AppError } from "../utils/app-error";
 
 import { generateAccessToken } from "../utils/jwt";
+
 import {
     generateRefreshToken,
     hashRefreshToken
 } from "../utils/refresh-token";
-import { getRefreshTokenExpiry } from "../utils/token-expiry";
+
 import {
-    createRefreshToken, findRefreshTokenByHash, revokeRefreshToken, revokeRefreshTokenByHash
+    getRefreshTokenExpiry
+} from "../utils/token-expiry";
+
+import {
+    createRefreshToken,
+    findRefreshTokenByHash,
+    revokeRefreshTokenByHash,
+    rotateRefreshToken
 } from "../repositories/refresh-token.repository";
 
+const BCRYPT_SALT_ROUNDS = 12;
 
-export const registerUser = async (data: RegisterDto) => {
+export const registerUser = async (
+    data: RegisterDto
+) => {
     // 1. Validate request
-    const validationErrors = validateRegisterRequest(data);
+    const validationErrors =
+        validateRegisterRequest(data);
 
     if (validationErrors.length > 0) {
         throw new AppError(
@@ -51,9 +63,10 @@ export const registerUser = async (data: RegisterDto) => {
     const lastName = data.lastName.trim();
 
     // 3. Check duplicate email
-    const existingEmail = await findUserByEmail(email);
+    const existingEmail =
+        await findUserByEmail(email);
 
-    if (Array.isArray(existingEmail) && existingEmail.length > 0) {
+    if (existingEmail.length > 0) {
         throw new AppError(
             "Email is already registered",
             409
@@ -61,20 +74,24 @@ export const registerUser = async (data: RegisterDto) => {
     }
 
     // 4. Check duplicate phone
-    const existingPhone = await findUserByPhone(phone);
+    const existingPhone =
+        await findUserByPhone(phone);
 
-    if (Array.isArray(existingPhone) && existingPhone.length > 0) {
+    if (existingPhone.length > 0) {
         throw new AppError(
             "Phone is already registered",
             409
         );
     }
 
-    // 5. Generate UUID
+    // 5. Generate user ID
     const userId = randomUUID();
 
     // 6. Hash password
-    const passwordHash = await bcrypt.hash(data.password, 12);
+    const passwordHash = await bcrypt.hash(
+        data.password,
+        BCRYPT_SALT_ROUNDS
+    );
 
     // 7. Create user
     await createUser(
@@ -96,9 +113,12 @@ export const registerUser = async (data: RegisterDto) => {
     };
 };
 
-export const loginUser = async (data: LoginDto) => {
+export const loginUser = async (
+    data: LoginDto
+) => {
     // 1. Validate request
-    const validationErrors = validateLoginRequest(data);
+    const validationErrors =
+        validateLoginRequest(data);
 
     if (validationErrors.length > 0) {
         throw new AppError(
@@ -111,9 +131,10 @@ export const loginUser = async (data: LoginDto) => {
     const email = data.email.trim().toLowerCase();
 
     // 3. Find user
-    const users = await findUserForLogin(email);
+    const users =
+        await findUserForLogin(email);
 
-    if (!Array.isArray(users) || users.length === 0) {
+    if (users.length === 0) {
         throw new AppError(
             "Invalid email or password",
             401
@@ -131,10 +152,11 @@ export const loginUser = async (data: LoginDto) => {
     }
 
     // 5. Compare password
-    const passwordMatches = await bcrypt.compare(
-        data.password,
-        user.password_hash
-    );
+    const passwordMatches =
+        await bcrypt.compare(
+            data.password,
+            user.password_hash
+        );
 
     if (!passwordMatches) {
         throw new AppError(
@@ -144,23 +166,26 @@ export const loginUser = async (data: LoginDto) => {
     }
 
     // 6. Generate access token
-    const accessToken = generateAccessToken({
-        userId: user.id,
-        email: user.email
-    });
+    const accessToken =
+        generateAccessToken({
+            userId: user.id,
+            email: user.email
+        });
 
-    // 7. Generate refresh token and store it in the database
-    const refreshToken = generateRefreshToken();
+    // 7. Generate refresh token
+    const refreshToken =
+        generateRefreshToken();
 
-    const refreshTokenHash = hashRefreshToken(
-        refreshToken
-    );
+    const refreshTokenHash =
+        hashRefreshToken(refreshToken);
 
-    const refreshTokenId = randomUUID();
+    const refreshTokenId =
+        randomUUID();
 
     const refreshTokenExpiresAt =
         getRefreshTokenExpiry();
 
+    // 8. Store refresh token
     await createRefreshToken(
         refreshTokenId,
         user.id,
@@ -168,7 +193,7 @@ export const loginUser = async (data: LoginDto) => {
         refreshTokenExpiresAt
     );
 
-    // 8. Return safe user data
+    // 9. Return authentication response
     return {
         accessToken,
         refreshToken,
@@ -182,8 +207,11 @@ export const loginUser = async (data: LoginDto) => {
     };
 };
 
-export const getCurrentUser = async (userId: string) => {
-    const users = await findUserById(userId);
+export const getCurrentUser = async (
+    userId: string
+) => {
+    const users =
+        await findUserById(userId);
 
     if (users.length === 0) {
         throw new AppError(
@@ -194,6 +222,7 @@ export const getCurrentUser = async (userId: string) => {
 
     const user = users[0];
 
+    // Check account status
     if (user.status !== "ACTIVE") {
         throw new AppError(
             "User account is not active",
@@ -218,6 +247,7 @@ export const getCurrentUser = async (userId: string) => {
 export const refreshAccessToken = async (
     refreshToken: string
 ) => {
+    // 1. Validate refresh token
     if (!refreshToken) {
         throw new AppError(
             "Refresh token is required",
@@ -225,15 +255,15 @@ export const refreshAccessToken = async (
         );
     }
 
-    // 1. Hash incoming refresh token
-    const tokenHash = hashRefreshToken(
-        refreshToken
-    );
+    // 2. Hash incoming refresh token
+    const tokenHash =
+        hashRefreshToken(refreshToken);
 
-    // 2. Find token in database
-    const tokens = await findRefreshTokenByHash(
-        tokenHash
-    );
+    // 3. Find refresh token
+    const tokens =
+        await findRefreshTokenByHash(
+            tokenHash
+        );
 
     if (tokens.length === 0) {
         throw new AppError(
@@ -244,7 +274,7 @@ export const refreshAccessToken = async (
 
     const tokenRecord = tokens[0];
 
-    // 3. Check revoked
+    // 4. Check revocation
     if (tokenRecord.revoked_at !== null) {
         throw new AppError(
             "Refresh token has been revoked",
@@ -252,7 +282,7 @@ export const refreshAccessToken = async (
         );
     }
 
-    // 4. Check expiry
+    // 5. Check expiry
     if (
         new Date() >=
         new Date(tokenRecord.expires_at)
@@ -263,10 +293,11 @@ export const refreshAccessToken = async (
         );
     }
 
-    // 5. Find user
-    const users = await findUserById(
-        tokenRecord.user_id
-    );
+    // 6. Find associated user
+    const users =
+        await findUserById(
+            tokenRecord.user_id
+        );
 
     if (users.length === 0) {
         throw new AppError(
@@ -277,7 +308,7 @@ export const refreshAccessToken = async (
 
     const user = users[0];
 
-    // 6. Check account status
+    // 7. Check account status
     if (user.status !== "ACTIVE") {
         throw new AppError(
             "User account is not active",
@@ -285,23 +316,21 @@ export const refreshAccessToken = async (
         );
     }
 
-    // 7. Revoke old refresh token
-    await revokeRefreshToken(
-        tokenRecord.id
-    );
-
     // 8. Generate new access token
-    const accessToken = generateAccessToken({
-        userId: user.id,
-        email: user.email
-    });
+    const accessToken =
+        generateAccessToken({
+            userId: user.id,
+            email: user.email
+        });
 
     // 9. Generate new refresh token
     const newRefreshToken =
         generateRefreshToken();
 
     const newRefreshTokenHash =
-        hashRefreshToken(newRefreshToken);
+        hashRefreshToken(
+            newRefreshToken
+        );
 
     const newRefreshTokenId =
         randomUUID();
@@ -309,14 +338,16 @@ export const refreshAccessToken = async (
     const newRefreshTokenExpiresAt =
         getRefreshTokenExpiry();
 
-    // 10. Save new refresh token
-    await createRefreshToken(
+    // 10. Atomically rotate refresh token
+    await rotateRefreshToken(
+        tokenRecord.id,
         newRefreshTokenId,
         user.id,
         newRefreshTokenHash,
         newRefreshTokenExpiresAt
     );
 
+    // 11. Return new token pair
     return {
         accessToken,
         refreshToken: newRefreshToken
@@ -326,6 +357,7 @@ export const refreshAccessToken = async (
 export const logoutUser = async (
     refreshToken: string
 ): Promise<void> => {
+    // 1. Validate refresh token
     if (!refreshToken) {
         throw new AppError(
             "Refresh token is required",
@@ -333,13 +365,15 @@ export const logoutUser = async (
         );
     }
 
-    const tokenHash = hashRefreshToken(
-        refreshToken
-    );
+    // 2. Hash refresh token
+    const tokenHash =
+        hashRefreshToken(refreshToken);
 
-    const result = await revokeRefreshTokenByHash(
-        tokenHash
-    );
+    // 3. Revoke refresh token
+    const result =
+        await revokeRefreshTokenByHash(
+            tokenHash
+        );
 
     if (result.affectedRows === 0) {
         throw new AppError(
