@@ -1,15 +1,19 @@
 name: Identity Service CI
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
-      - main
-      - develop
+      - dev
+      - uat
+      - master
 
   pull_request:
     branches:
-      - main
-      - develop
+      - dev
+      - uat
+      - master
 
 jobs:
   test:
@@ -49,6 +53,7 @@ jobs:
 
       - name: Create test database
         env:
+          NODE_ENV: test
           DB_HOST: 127.0.0.1
           DB_PORT: 3306
           DB_USER: root
@@ -57,7 +62,7 @@ jobs:
           DB_CONNECTION_LIMIT: 10
         run: npm run test:db
 
-      - name: Run test migrations
+      - name: Run database migrations
         env:
           NODE_ENV: test
           DB_HOST: 127.0.0.1
