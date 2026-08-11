@@ -19,7 +19,7 @@ jobs:
   test:
     name: Test Identity Service
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       mysql:
@@ -45,7 +45,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -72,6 +72,25 @@ jobs:
           DB_NAME: identity_test_db
           DB_CONNECTION_LIMIT: 10
         run: npm run test:migrate
+
+      - name: Validate branch promotion
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ "${{ github.base_ref }}" = "uat" ] && [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "❌ Only dev can create PRs to uat."
+            echo "Source branch: ${{ github.head_ref }}"
+            echo "Target branch: ${{ github.base_ref }}"
+            exit 1
+          fi
+
+          if [ "${{ github.base_ref }}" = "master" ] && [ "${{ github.head_ref }}" != "uat" ]; then
+            echo "❌ Only uat can create PRs to master."
+            echo "Source branch: ${{ github.head_ref }}"
+            echo "Target branch: ${{ github.base_ref }}"
+            exit 1
+          fi
+
+          echo "✅ Branch promotion is valid."
 
       - name: Run tests with coverage
         env:
