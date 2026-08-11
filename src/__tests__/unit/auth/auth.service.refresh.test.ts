@@ -4,8 +4,7 @@ import { findUserById } from "../../../repositories/user.repository";
 
 import {
     findRefreshTokenByHash,
-    revokeRefreshToken,
-    createRefreshToken
+    rotateRefreshToken
 } from "../../../repositories/refresh-token.repository";
 
 import {
@@ -17,31 +16,42 @@ import { generateAccessToken } from "../../../utils/jwt";
 
 import { getRefreshTokenExpiry } from "../../../utils/token-expiry";
 
-jest.mock("../../../repositories/user.repository", () => ({
-    findUserById: jest.fn()
-}));
+jest.mock(
+    "../../../repositories/user.repository",
+    () => ({
+        findUserById: jest.fn()
+    })
+);
 
 jest.mock(
     "../../../repositories/refresh-token.repository",
     () => ({
         findRefreshTokenByHash: jest.fn(),
-        revokeRefreshToken: jest.fn(),
-        createRefreshToken: jest.fn()
+        rotateRefreshToken: jest.fn()
     })
 );
 
-jest.mock("../../../utils/refresh-token", () => ({
-    generateRefreshToken: jest.fn(),
-    hashRefreshToken: jest.fn()
-}));
+jest.mock(
+    "../../../utils/refresh-token",
+    () => ({
+        generateRefreshToken: jest.fn(),
+        hashRefreshToken: jest.fn()
+    })
+);
 
-jest.mock("../../../utils/jwt", () => ({
-    generateAccessToken: jest.fn()
-}));
+jest.mock(
+    "../../../utils/jwt",
+    () => ({
+        generateAccessToken: jest.fn()
+    })
+);
 
-jest.mock("../../../utils/token-expiry", () => ({
-    getRefreshTokenExpiry: jest.fn()
-}));
+jest.mock(
+    "../../../utils/token-expiry",
+    () => ({
+        getRefreshTokenExpiry: jest.fn()
+    })
+);
 
 const mockedFindUserById =
     findUserById as jest.Mock;
@@ -49,11 +59,8 @@ const mockedFindUserById =
 const mockedFindRefreshTokenByHash =
     findRefreshTokenByHash as jest.Mock;
 
-const mockedRevokeRefreshToken =
-    revokeRefreshToken as jest.Mock;
-
-const mockedCreateRefreshToken =
-    createRefreshToken as jest.Mock;
+const mockedRotateRefreshToken =
+    rotateRefreshToken as jest.Mock;
 
 const mockedGenerateRefreshToken =
     generateRefreshToken as jest.Mock;
@@ -72,320 +79,475 @@ describe("refreshAccessToken", () => {
         jest.clearAllMocks();
     });
 
-    it("should reject when refresh token is missing", async () => {
-        await expect(
-            refreshAccessToken("")
-        ).rejects.toThrow(
-            "Refresh token is required"
-        );
+    it(
+        "should reject when refresh token is missing",
+        async () => {
+            await expect(
+                refreshAccessToken("")
+            ).rejects.toThrow(
+                "Refresh token is required"
+            );
 
-        expect(
+            expect(
+                mockedFindRefreshTokenByHash
+            ).not.toHaveBeenCalled();
+
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
+
+    it(
+        "should reject when refresh token does not exist",
+        async () => {
+            mockedHashRefreshToken.mockReturnValue(
+                "unknown-token-hash"
+            );
+
             mockedFindRefreshTokenByHash
-        ).not.toHaveBeenCalled();
-    });
+                .mockResolvedValue([]);
 
-    it("should reject when refresh token does not exist", async () => {
-        mockedHashRefreshToken.mockReturnValue(
-            "unknown-token-hash"
-        );
+            await expect(
+                refreshAccessToken(
+                    "invalid-token"
+                )
+            ).rejects.toThrow(
+                "Invalid refresh token"
+            );
 
-        mockedFindRefreshTokenByHash.mockResolvedValue([]);
+            expect(
+                mockedFindRefreshTokenByHash
+            ).toHaveBeenCalledWith(
+                "unknown-token-hash"
+            );
 
-        await expect(
-            refreshAccessToken("invalid-token")
-        ).rejects.toThrow(
-            "Invalid refresh token"
-        );
+            expect(
+                mockedFindUserById
+            ).not.toHaveBeenCalled();
 
-        expect(
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
+
+    it(
+        "should reject when refresh token is revoked",
+        async () => {
+            mockedHashRefreshToken.mockReturnValue(
+                "revoked-token-hash"
+            );
+
             mockedFindRefreshTokenByHash
-        ).toHaveBeenCalledWith(
-            "unknown-token-hash"
-        );
+                .mockResolvedValue([
+                    {
+                        id: "refresh-id",
+                        user_id: "user-123",
+                        revoked_at: new Date(
+                            "2026-08-10T10:00:00.000Z"
+                        ),
+                        expires_at: new Date(
+                            "2026-08-17T10:00:00.000Z"
+                        )
+                    }
+                ]);
 
-        expect(
-            mockedFindUserById
-        ).not.toHaveBeenCalled();
-    });
-
-    it("should reject when refresh token is revoked", async () => {
-        mockedHashRefreshToken.mockReturnValue(
-            "revoked-token-hash"
-        );
-
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "refresh-id",
-                user_id: "user-123",
-                revoked_at: new Date(
-                    "2026-08-10T10:00:00.000Z"
-                ),
-                expires_at: new Date(
-                    "2026-08-17T10:00:00.000Z"
+            await expect(
+                refreshAccessToken(
+                    "revoked-token"
                 )
-            }
-        ]);
+            ).rejects.toThrow(
+                "Refresh token has been revoked"
+            );
 
-        await expect(
-            refreshAccessToken("revoked-token")
-        ).rejects.toThrow(
-            "Refresh token has been revoked"
-        );
+            expect(
+                mockedFindUserById
+            ).not.toHaveBeenCalled();
 
-        expect(
-            mockedFindUserById
-        ).not.toHaveBeenCalled();
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
 
-        expect(
-            mockedRevokeRefreshToken
-        ).not.toHaveBeenCalled();
-    });
+    it(
+        "should reject when refresh token is expired",
+        async () => {
+            mockedHashRefreshToken.mockReturnValue(
+                "expired-token-hash"
+            );
 
-    it("should reject when refresh token is expired", async () => {
-        mockedHashRefreshToken.mockReturnValue(
-            "expired-token-hash"
-        );
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: new Date(
+                            "2020-01-01T00:00:00.000Z"
+                        )
+                    }
+                ]);
 
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "refresh-id",
-                user_id: "user-123",
-                revoked_at: null,
-                expires_at: new Date(
-                    "2020-01-01T00:00:00.000Z"
+            await expect(
+                refreshAccessToken(
+                    "expired-token"
                 )
-            }
-        ]);
+            ).rejects.toThrow(
+                "Refresh token has expired"
+            );
 
-        await expect(
-            refreshAccessToken("expired-token")
-        ).rejects.toThrow(
-            "Refresh token has expired"
-        );
+            expect(
+                mockedFindUserById
+            ).not.toHaveBeenCalled();
 
-        expect(
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
+
+    it(
+        "should reject when user does not exist",
+        async () => {
+            mockedHashRefreshToken.mockReturnValue(
+                "valid-token-hash"
+            );
+
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: new Date(
+                            "2099-01-01T00:00:00.000Z"
+                        )
+                    }
+                ]);
+
             mockedFindUserById
-        ).not.toHaveBeenCalled();
+                .mockResolvedValue([]);
 
-        expect(
-            mockedRevokeRefreshToken
-        ).not.toHaveBeenCalled();
-    });
-
-    it("should reject when user does not exist", async () => {
-        mockedHashRefreshToken.mockReturnValue(
-            "valid-token-hash"
-        );
-
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "refresh-id",
-                user_id: "user-123",
-                revoked_at: null,
-                expires_at: new Date(
-                    "2099-01-01T00:00:00.000Z"
+            await expect(
+                refreshAccessToken(
+                    "valid-token"
                 )
-            }
-        ]);
+            ).rejects.toThrow(
+                "User not found"
+            );
 
-        mockedFindUserById.mockResolvedValue([]);
+            expect(
+                mockedFindUserById
+            ).toHaveBeenCalledWith(
+                "user-123"
+            );
 
-        await expect(
-            refreshAccessToken("valid-token")
-        ).rejects.toThrow(
-            "User not found"
-        );
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
 
-        expect(
+    it(
+        "should reject when user account is inactive",
+        async () => {
+            mockedHashRefreshToken.mockReturnValue(
+                "valid-token-hash"
+            );
+
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: new Date(
+                            "2099-01-01T00:00:00.000Z"
+                        )
+                    }
+                ]);
+
             mockedFindUserById
-        ).toHaveBeenCalledWith("user-123");
+                .mockResolvedValue([
+                    {
+                        id: "user-123",
+                        email: "test@example.com",
+                        status: "INACTIVE"
+                    }
+                ]);
 
-        expect(
-            mockedRevokeRefreshToken
-        ).not.toHaveBeenCalled();
-    });
-
-    it("should reject when user account is inactive", async () => {
-        mockedHashRefreshToken.mockReturnValue(
-            "valid-token-hash"
-        );
-
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "refresh-id",
-                user_id: "user-123",
-                revoked_at: null,
-                expires_at: new Date(
-                    "2099-01-01T00:00:00.000Z"
+            await expect(
+                refreshAccessToken(
+                    "valid-token"
                 )
-            }
-        ]);
+            ).rejects.toThrow(
+                "User account is not active"
+            );
 
-        mockedFindUserById.mockResolvedValue([
-            {
-                id: "user-123",
-                email: "test@example.com",
-                status: "INACTIVE"
-            }
-        ]);
+            expect(
+                mockedRotateRefreshToken
+            ).not.toHaveBeenCalled();
+        }
+    );
 
-        await expect(
-            refreshAccessToken("valid-token")
-        ).rejects.toThrow(
-            "User account is not active"
-        );
+    it(
+        "should refresh tokens successfully",
+        async () => {
+            const expiresAt = new Date(
+                "2099-01-01T00:00:00.000Z"
+            );
 
-        expect(
-            mockedRevokeRefreshToken
-        ).not.toHaveBeenCalled();
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "old-refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: expiresAt
+                    }
+                ]);
 
-        expect(
-            mockedCreateRefreshToken
-        ).not.toHaveBeenCalled();
-    });
+            mockedFindUserById
+                .mockResolvedValue([
+                    {
+                        id: "user-123",
+                        email: "test@example.com",
+                        status: "ACTIVE"
+                    }
+                ]);
 
-    it("should refresh tokens successfully", async () => {
-        const expiresAt = new Date(
-            "2099-01-01T00:00:00.000Z"
-        );
+            mockedHashRefreshToken
+                .mockReturnValueOnce(
+                    "old-token-hash"
+                )
+                .mockReturnValueOnce(
+                    "new-token-hash"
+                );
 
-        mockedHashRefreshToken.mockReturnValue(
-            "old-token-hash"
-        );
-
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "old-refresh-id",
-                user_id: "user-123",
-                revoked_at: null,
-                expires_at: expiresAt
-            }
-        ]);
-
-        mockedFindUserById.mockResolvedValue([
-            {
-                id: "user-123",
-                email: "test@example.com",
-                status: "ACTIVE"
-            }
-        ]);
-
-        mockedGenerateAccessToken.mockReturnValue(
-            "new-access-token"
-        );
-
-        mockedGenerateRefreshToken.mockReturnValue(
-            "new-refresh-token"
-        );
-
-        mockedHashRefreshToken
-            .mockReturnValueOnce("old-token-hash")
-            .mockReturnValueOnce("new-token-hash");
-
-        mockedGetRefreshTokenExpiry.mockReturnValue(
-            expiresAt
-        );
-
-        mockedRevokeRefreshToken.mockResolvedValue(
-            undefined
-        );
-
-        mockedCreateRefreshToken.mockResolvedValue(
-            undefined
-        );
-
-        const result =
-            await refreshAccessToken("old-refresh-token");
-
-        expect(result).toEqual({
-            accessToken: "new-access-token",
-            refreshToken: "new-refresh-token"
-        });
-
-        expect(
-            mockedRevokeRefreshToken
-        ).toHaveBeenCalledWith(
-            "old-refresh-id"
-        );
-
-        expect(
             mockedGenerateAccessToken
-        ).toHaveBeenCalledWith({
-            userId: "user-123",
-            email: "test@example.com"
-        });
+                .mockReturnValue(
+                    "new-access-token"
+                );
 
-        expect(
             mockedGenerateRefreshToken
-        ).toHaveBeenCalledTimes(1);
+                .mockReturnValue(
+                    "new-refresh-token"
+                );
 
-        expect(
-            mockedCreateRefreshToken
-        ).toHaveBeenCalledWith(
-            expect.any(String),
-            "user-123",
-            "new-token-hash",
-            expiresAt
-        );
-    });
+            mockedGetRefreshTokenExpiry
+                .mockReturnValue(
+                    expiresAt
+                );
 
-    it("should revoke the old token before storing the new token", async () => {
-        const expiresAt = new Date(
-            "2099-01-01T00:00:00.000Z"
-        );
+            mockedRotateRefreshToken
+                .mockResolvedValue(
+                    undefined
+                );
 
-        mockedHashRefreshToken
-            .mockReturnValueOnce("old-hash")
-            .mockReturnValueOnce("new-hash");
+            const result =
+                await refreshAccessToken(
+                    "old-refresh-token"
+                );
 
-        mockedFindRefreshTokenByHash.mockResolvedValue([
-            {
-                id: "old-refresh-id",
-                user_id: "user-123",
-                revoked_at: null,
-                expires_at: expiresAt
-            }
-        ]);
+            expect(result).toEqual({
+                accessToken:
+                    "new-access-token",
+                refreshToken:
+                    "new-refresh-token"
+            });
 
-        mockedFindUserById.mockResolvedValue([
-            {
-                id: "user-123",
-                email: "test@example.com",
-                status: "ACTIVE"
-            }
-        ]);
+            expect(
+                mockedGenerateAccessToken
+            ).toHaveBeenCalledWith({
+                userId: "user-123",
+                email: "test@example.com"
+            });
 
-        mockedGenerateAccessToken.mockReturnValue(
-            "access-token"
-        );
+            expect(
+                mockedGenerateRefreshToken
+            ).toHaveBeenCalledTimes(1);
 
-        mockedGenerateRefreshToken.mockReturnValue(
-            "new-refresh-token"
-        );
+            expect(
+                mockedRotateRefreshToken
+            ).toHaveBeenCalledWith(
+                "old-refresh-id",
+                expect.any(String),
+                "user-123",
+                "new-token-hash",
+                expiresAt
+            );
+        }
+    );
 
-        mockedGetRefreshTokenExpiry.mockReturnValue(
-            expiresAt
-        );
+    it(
+        "should atomically rotate the old token",
+        async () => {
+            const expiresAt = new Date(
+                "2099-01-01T00:00:00.000Z"
+            );
 
-        const callOrder: string[] = [];
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "old-refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: expiresAt
+                    }
+                ]);
 
-        mockedRevokeRefreshToken.mockImplementation(
-            async () => {
-                callOrder.push("revoke");
-            }
-        );
+            mockedFindUserById
+                .mockResolvedValue([
+                    {
+                        id: "user-123",
+                        email: "test@example.com",
+                        status: "ACTIVE"
+                    }
+                ]);
 
-        mockedCreateRefreshToken.mockImplementation(
-            async () => {
-                callOrder.push("create");
-            }
-        );
+            mockedHashRefreshToken
+                .mockReturnValueOnce(
+                    "old-hash"
+                )
+                .mockReturnValueOnce(
+                    "new-hash"
+                );
 
-        await refreshAccessToken("old-refresh-token");
+            mockedGenerateAccessToken
+                .mockReturnValue(
+                    "access-token"
+                );
 
-        expect(callOrder).toEqual([
-            "revoke",
-            "create"
-        ]);
-    });
+            mockedGenerateRefreshToken
+                .mockReturnValue(
+                    "new-refresh-token"
+                );
+
+            mockedGetRefreshTokenExpiry
+                .mockReturnValue(
+                    expiresAt
+                );
+
+            mockedRotateRefreshToken
+                .mockImplementation(
+                    async (
+                        oldTokenId,
+                        newTokenId,
+                        userId,
+                        newTokenHash,
+                        newExpiresAt
+                    ) => {
+                        expect(
+                            oldTokenId
+                        ).toBe(
+                            "old-refresh-id"
+                        );
+
+                        expect(
+                            newTokenId
+                        ).toEqual(
+                            expect.any(String)
+                        );
+
+                        expect(
+                            userId
+                        ).toBe(
+                            "user-123"
+                        );
+
+                        expect(
+                            newTokenHash
+                        ).toBe(
+                            "new-hash"
+                        );
+
+                        expect(
+                            newExpiresAt
+                        ).toBe(
+                            expiresAt
+                        );
+                    }
+                );
+
+            await refreshAccessToken(
+                "old-refresh-token"
+            );
+
+            expect(
+                mockedRotateRefreshToken
+            ).toHaveBeenCalledTimes(1);
+        }
+    );
+
+    it(
+        "should propagate refresh token rotation failure",
+        async () => {
+            const expiresAt = new Date(
+                "2099-01-01T00:00:00.000Z"
+            );
+
+            mockedFindRefreshTokenByHash
+                .mockResolvedValue([
+                    {
+                        id: "old-refresh-id",
+                        user_id: "user-123",
+                        revoked_at: null,
+                        expires_at: expiresAt
+                    }
+                ]);
+
+            mockedFindUserById
+                .mockResolvedValue([
+                    {
+                        id: "user-123",
+                        email: "test@example.com",
+                        status: "ACTIVE"
+                    }
+                ]);
+
+            mockedHashRefreshToken
+                .mockReturnValueOnce(
+                    "old-hash"
+                )
+                .mockReturnValueOnce(
+                    "new-hash"
+                );
+
+            mockedGenerateAccessToken
+                .mockReturnValue(
+                    "access-token"
+                );
+
+            mockedGenerateRefreshToken
+                .mockReturnValue(
+                    "new-refresh-token"
+                );
+
+            mockedGetRefreshTokenExpiry
+                .mockReturnValue(
+                    expiresAt
+                );
+
+            mockedRotateRefreshToken
+                .mockRejectedValue(
+                    new Error(
+                        "Database transaction failed"
+                    )
+                );
+
+            await expect(
+                refreshAccessToken(
+                    "old-refresh-token"
+                )
+            ).rejects.toThrow(
+                "Database transaction failed"
+            );
+
+            expect(
+                mockedRotateRefreshToken
+            ).toHaveBeenCalledTimes(1);
+        }
+    );
 });
