@@ -9,7 +9,7 @@
   "scripts": {
     "test": "jest --testPathPatterns=src/__tests__/unit",
     "test:unit": "jest --testPathPatterns=src/__tests__/unit",
-    "test:integration": "NODE_ENV=test jest --testPathPatterns=src/__tests__/integration",
+    "test:integration": "NODE_ENV=test npm run test:db && NODE_ENV=test npm run test:migrate && jest --testPathPatterns=src/__tests__/integration",
     "test:all": "jest",
     "test:coverage": "jest --coverage",
     "test:db": "ts-node --transpile-only src/scripts/create-test-db.ts",
