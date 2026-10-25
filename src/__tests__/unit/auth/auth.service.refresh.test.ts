@@ -314,7 +314,8 @@ describe("refreshAccessToken", () => {
                     {
                         id: "user-123",
                         email: "test@example.com",
-                        status: "ACTIVE"
+                        status: "ACTIVE",
+                        role: "CUSTOMER"
                     }
                 ]);
 
@@ -362,7 +363,8 @@ describe("refreshAccessToken", () => {
                 mockedGenerateAccessToken
             ).toHaveBeenCalledWith({
                 userId: "user-123",
-                email: "test@example.com"
+                email: "test@example.com",
+                role: "CUSTOMER"
             });
 
             expect(
@@ -403,7 +405,8 @@ describe("refreshAccessToken", () => {
                     {
                         id: "user-123",
                         email: "test@example.com",
-                        status: "ACTIVE"
+                        status: "ACTIVE",
+                        role: "CUSTOMER"
                     }
                 ]);
 
@@ -503,7 +506,8 @@ describe("refreshAccessToken", () => {
                     {
                         id: "user-123",
                         email: "test@example.com",
-                        status: "ACTIVE"
+                        status: "ACTIVE",
+                        role: "CUSTOMER"
                     }
                 ]);
 

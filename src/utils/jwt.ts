@@ -5,9 +5,12 @@ import {
     JWT_EXPIRES_IN
 } from "../config/jwt";
 
+export type UserRole = "CUSTOMER" | "ADMIN";
+
 export interface JwtPayload {
     userId: string;
     email: string;
+    role: UserRole;
 }
 
 export const generateAccessToken = (

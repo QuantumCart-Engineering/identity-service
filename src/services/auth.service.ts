@@ -169,7 +169,8 @@ export const loginUser = async (
     const accessToken =
         generateAccessToken({
             userId: user.id,
-            email: user.email
+            email: user.email,
+            role: user.role
         });
 
     // 7. Generate refresh token
@@ -202,7 +203,8 @@ export const loginUser = async (
             email: user.email,
             phone: user.phone,
             firstName: user.first_name,
-            lastName: user.last_name
+            lastName: user.last_name,
+            role: user.role
         }
     };
 };
@@ -236,6 +238,7 @@ export const getCurrentUser = async (
         phone: user.phone,
         firstName: user.first_name,
         lastName: user.last_name,
+        role: user.role,
         status: user.status,
         emailVerified: user.email_verified,
         phoneVerified: user.phone_verified,
@@ -320,7 +323,8 @@ export const refreshAccessToken = async (
     const accessToken =
         generateAccessToken({
             userId: user.id,
-            email: user.email
+            email: user.email,
+            role: user.role
         });
 
     // 9. Generate new refresh token

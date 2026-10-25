@@ -18,7 +18,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "clean": "rm -rf dist",
-    "migrate": "ts-node --transpile-only src/scripts/migrate.ts"
+    "migrate": "ts-node --transpile-only src/scripts/migrate.ts",
+    "seed:admin": "ts-node --transpile-only src/scripts/seed-admin.ts"
   },
   "keywords": [],
   "author": "",

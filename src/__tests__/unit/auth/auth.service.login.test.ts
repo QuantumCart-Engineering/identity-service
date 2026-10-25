@@ -103,7 +103,8 @@ describe("loginUser", () => {
             password_hash: "hashed-password",
             first_name: "Test",
             last_name: "User",
-            status: "ACTIVE"
+            status: "ACTIVE",
+            role: "CUSTOMER"
         };
 
         const expiresAt = new Date(
@@ -148,7 +149,8 @@ describe("loginUser", () => {
                 email: "test@example.com",
                 phone: "9876543210",
                 firstName: "Test",
-                lastName: "User"
+                lastName: "User",
+                role: "CUSTOMER"
             }
         });
 
@@ -166,7 +168,8 @@ describe("loginUser", () => {
         expect(mockedGenerateAccessToken)
             .toHaveBeenCalledWith({
                 userId: "user-123",
-                email: "test@example.com"
+                email: "test@example.com",
+                role: "CUSTOMER"
             });
 
         expect(mockedGenerateRefreshToken)

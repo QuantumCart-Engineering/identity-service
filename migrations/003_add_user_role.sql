@@ -1,0 +1,4 @@
+ALTER TABLE users
+    ADD COLUMN role ENUM('CUSTOMER', 'ADMIN')
+        NOT NULL DEFAULT 'CUSTOMER'
+        AFTER status;

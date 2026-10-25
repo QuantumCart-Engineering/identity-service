@@ -10,6 +10,8 @@ import {
 
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 
+import type { UserRole } from "../utils/jwt";
+
 interface UserRow extends RowDataPacket {
     id: string;
     email: string;
@@ -17,6 +19,7 @@ interface UserRow extends RowDataPacket {
     first_name: string;
     last_name: string;
     status: "ACTIVE" | "INACTIVE" | "BLOCKED";
+    role: UserRole;
     email_verified: boolean;
     phone_verified: boolean;
     created_at?: Date;

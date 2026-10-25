@@ -27,6 +27,7 @@ export const FIND_USER_FOR_LOGIN = `
         first_name,
         last_name,
         status,
+        role,
         email_verified,
         phone_verified
     FROM users
@@ -42,6 +43,7 @@ export const FIND_USER_BY_ID = `
         first_name,
         last_name,
         status,
+        role,
         email_verified,
         phone_verified,
         created_at,
